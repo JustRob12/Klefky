@@ -1,69 +1,61 @@
-# Klefky: Secure Offline Password Vault & Manager
-## Product & Architectural Summary
+# Klefky: Offline Password Vault
 
-This document summarizes the proposed product concept, visual theme, user experience flow, and technical architecture for the **Klefky** password manager application.
-
----
-
-## 🛡️ Core App Concept
-**Klefky** is a high-security, local-first offline password manager built with **Expo (React Native) and TypeScript**. It keeps all sensitive credentials encrypted directly on the user's device, ensuring absolute privacy (zero-knowledge architecture) with biometric locks and a 6-digit backup PIN.
+Klefky is a secure, completely offline password manager designed with a minimalist black-and-white aesthetic, subtle gradients, and a highly professional, simple user experience.
 
 ---
 
-## 🔒 Authentication & Lock Flow
-
-When the app is opened, it strictly checks the registration status:
-
-```mermaid
-graph TD
-    A[Launch Klefky] --> B{First Time?}
-    B -- Yes --> C[Register Biometrics / Fingerprint]
-    C --> D[Setup 6-digit PIN]
-    D --> E[Initialize AES Encryption Key]
-    E --> F[Open Vault Dashboard]
-    
-    B -- No --> G[Show Lock Screen]
-    G --> H{Fingerprint Valid?}
-    H -- Yes --> F
-    H -- No/Cancel --> I[Input 6-digit PIN]
-    I --> J{PIN Correct?}
-    J -- Yes --> F
-    J -- No --> G
-```
-
-1. **Fingerprint Registration:** Leveraging native local authentication (`expo-local-authentication`), the user registers their fingerprint/biometrics.
-2. **PIN Code Setup:** A custom, elegant 6-digit numpad screen prompt to establish a backup PIN.
-3. **Vault Lockdown:** The app intercepts every launch with a biometric prompt, falling back immediately to the PIN keypad if requested.
+## 🎨 Color Palette & UI Design System
+To achieve a simple, professional, and elegant design, the app will use:
+* **Backgrounds:** Pure black (`#000000`) and deep carbon gray (`#121212`) for high contrast and battery savings.
+* **Accents & Text:** Crisp white (`#FFFFFF`) and slate gray (`#8E8E93`) for readable hierarchy.
+* **Gradients:** Subtle, smooth metallic/silver gradients (e.g., `#FFFFFF` to `#E5E5EA` or `#1E1E1E` to `#0A0A0A`) for interactive buttons and progress indicators.
+* **Typography:** Clean, geometric sans-serif fonts (e.g., standard system Inter/Roboto).
+* **Atmosphere:** Glassmorphic borders, soft drop shadows, and minimalist line-art icons.
 
 ---
 
-## 🧭 Navigation Layout & Bottom Navigation Modules
+## 🔒 Offline & Local-First Security Architecture
+No cloud servers, no network calls. Your credentials never leave your physical device.
 
-The app will feature a sleek **Bottom Navigation Bar** composed of four essential modules:
-
-| Tab Module | Core Features | Visual Highlights |
-| :--- | :--- | :--- |
-| **🔐 Vault (Home)** | • Search credentials<br>• Grid of popular apps (Steam, Netflix, Google, Spotify, etc.)<br>• Category sorting (Social, Finance, Work)<br>• Add/Edit screen | • Branded app cards with official colors<br>• Quick-copy buttons with tap haptics<br>• Floating addition button |
-| **⚡ Generator** | • Customizable length slider (8 to 64 chars)<br>• Toggle parameters (Symbols, Numbers, Caps)<br>• History log of generated keys | • Live password strength progress bar<br>• One-tap copy & secure clipboard wipe |
-| **📊 Security (Dashboard)** | • Audit metrics of saved entries<br>• Leak checks (mock/local dictionary check)<br>• Reused password detection | • Glowing security rings (score percentage)<br>• List of accounts needing attention |
-| **⚙️ Settings** | • Toggle Biometric login<br>• Change 6-digit PIN<br>• Self-Destruct trigger (wipe on X failed PIN attempts)<br>• Encrypted backup/restore (JSON import/export) | • Clean modern settings list<br>• Danger zone options in red glassmorphism |
-
----
-
-## 🛠️ Tech Stack & Security Architecture
-
-1. **Client Framework:** Expo SDK 56 + React Native (with TypeScript) using a clean, custom design system.
-2. **Device Biometrics:** `expo-local-authentication` to communicate with native FaceID / TouchID / Android Fingerprint services.
-3. **Secure Vault Storage:**
-   * **Keys:** `expo-secure-store` to keep the master encryption key, biometric preferences, and hashed PIN.
-   * **Data Vault:** `expo-file-system` to write/read the database. The database is stored as a JSON file encrypted using **AES-256** via `crypto-js` so that even if the device is rooted or compromised, the vault file remains unreadable without the master key.
-4. **Navigation Framework:** React Navigation (or Expo Router) with dynamic authentication state switches.
+1. **Keychain Secret Storage (`expo-secure-store`):**
+   * Stores the hardware-backed **Master Encryption Key** (generated on first launch).
+   * Stores the **PIN Hash** and **Biometrics Preferences** (whether fingerprint is enabled).
+2. **Encrypted Database Storage (`expo-file-system`):**
+   * Since `secure-store` has a 2KB limit, the list of logins is saved as a JSON file in the app's local document directory.
+   * Every time you save a password, the JSON is encrypted using **AES-256** with the Master Encryption Key before being written to disk.
+   * It is only decrypted in memory when the app is unlocked.
 
 ---
 
-## 🎨 Recommended Visual Theme: "Midnight Obsidian"
+## 🚀 App Flow & Navigation
 
-A premium dark theme designed to inspire trust and visual excellence:
-* **Background:** Dark slate & deep obsidian (`#0F172A`, `#020617`).
-* **Accents:** Glowing neon security blue (`#38BDF8`) and matrix green (`#10B981`) for successful indicators.
-* **Component Styling:** Glassmorphic translucent cards, elegant shadows, and smooth micro-animations on touch press.
+### 1. First Launch Flow
+* **Welcome Screen:** High-contrast introduction to Klefky's offline vault.
+* **Biometrics Setup:** Queries the system for fingerprint/face scanning using `expo-local-authentication`. Request registration to enable instant unlock.
+* **6-Digit Backup PIN:** A clean, custom grid numpad to set a 6-digit backup PIN (entered twice for verification).
+
+### 2. Subsequent App Launch
+* The app boots directly to an elegant lock screen.
+* It immediately prompts for biometric authentication (fingerprint).
+* If cancelled or failed, the user can type their 6-digit PIN on the custom numpad to decrypt and enter the vault.
+
+### 3. Main Authenticated Interface (Bottom Tabs)
+We suggest **three clean and professional tabs** to keep navigation simple:
+
+#### 📁 Tab 1: Vault (Home)
+* **Search & Filter:** A top search bar with pill-tabs for categories (e.g., All, Logins, Cards, Notes).
+* **Credential List:** Clean white cards with subtle gradients displaying the App Name, Username, and quick buttons to:
+  * Copy Username/Email to clipboard.
+  * Copy Password to clipboard.
+* **Add Credential Screen:** A sliding bottom drawer or dedicated screen. Select service type (e.g. Steam, Google, or custom), enter details, and hit Save.
+
+#### ⚡ Tab 2: Generator
+* **Interactive Tool:** Generate secure, complex passwords.
+* **Sliders & Toggles:** Simple sliders for password length (8-64 characters) and toggle switches for symbols, numbers, and uppercase letters.
+* **Subtle Gradients:** The generated password is shown in a prominent, gradient-filled box with a tap-to-copy feedback animation.
+
+#### ⚙️ Tab 3: Settings
+* **Security Controls:** Toggle Fingerprint unlock on/off, change the 6-digit PIN.
+* **Vault Actions:**
+  * **Export Encrypted Backup:** Saves the raw encrypted database file to the device storage so you can back it up manually.
+  * **Self-Destruct / Purge Vault:** Completely wipe all credentials and settings from the device (requires PIN confirmation).
