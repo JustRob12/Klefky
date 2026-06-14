@@ -22,32 +22,33 @@ export default function CircularProgress({
   let statusColor = '#000000';
   if (score < 50) {
     statusText = 'At Risk';
-    statusColor = '#8E8E93';
+    statusColor = '#000000';
   } else if (score < 80) {
     statusText = 'Warning';
-    statusColor = '#8E8E93';
+    statusColor = '#000000';
   }
 
   const isSmall = size < 120;
-  const numberFontSize = isSmall ? Math.round(size * 0.28) : 48;
+  const numberFontSize = isSmall ? Math.round(size * 0.28) : 42;
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
       <Svg width={size} height={size} style={styles.svg}>
         <Defs>
-          {/* Subtle gradient for the progress stroke */}
-          <LinearGradient id="bwGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          {/* Subtle monochrome gradient */}
+          <LinearGradient id="cyberGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <Stop offset="0%" stopColor="#000000" />
-            <Stop offset="100%" stopColor="#8E8E93" />
+            <Stop offset="70%" stopColor="#475569" />
+            <Stop offset="100%" stopColor="#CBD5E1" />
           </LinearGradient>
         </Defs>
 
-        {/* Background Circle */}
+        {/* Background Circle - Light slate */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#E5E5EA"
+          stroke="#F1F5F9"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -57,7 +58,7 @@ export default function CircularProgress({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="url(#bwGradient)"
+          stroke="url(#cyberGradient)"
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -95,20 +96,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreNumber: {
-    fontWeight: '300',
+    fontWeight: '200',
     color: '#000000',
     fontFamily: 'System',
   },
   scoreLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
+    fontSize: 10,
+    color: '#64748B',
     textTransform: 'uppercase',
-    letterSpacing: 2,
-    marginTop: -4,
+    letterSpacing: 3,
+    marginTop: -2,
   },
   statusText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
-    marginTop: 8,
+    marginTop: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
   },
 });
+

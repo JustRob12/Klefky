@@ -11,6 +11,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,6 +30,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
   const [filteredVault, setFilteredVault] = useState<CredentialItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchFocused, setSearchFocused] = useState(false);
   
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -47,6 +49,12 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
   const [showFormPassword, setShowFormPassword] = useState(false);
   const [showDetailPassword, setShowDetailPassword] = useState(false);
   const [hueSliderWidth, setHueSliderWidth] = useState(1);
+
+  // Feedback overlay state
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusType, setStatusType] = useState<'success' | 'delete'>('success');
+  const [statusMessage, setStatusMessage] = useState('');
+  const statusAnim = useState(new Animated.Value(0))[0];
 
   // Audit state
   const [securityScore, setSecurityScore] = useState(100);
@@ -170,6 +178,30 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
     setFormPassword(generated);
   };
 
+  const showStatusFeedback = (type: 'success' | 'delete', message: string) => {
+    setStatusType(type);
+    setStatusMessage(message);
+    setIsStatusModalOpen(true);
+    statusAnim.setValue(0);
+
+    Animated.sequence([
+      Animated.spring(statusAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 80,
+        friction: 8,
+      }),
+      Animated.delay(1200),
+      Animated.timing(statusAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setIsStatusModalOpen(false);
+    });
+  };
+
   const handleAddCredential = async () => {
     if (!formService.trim() || !formPassword.trim()) {
       Alert.alert('Required Fields', 'Please fill out Service Name and Password.');
@@ -193,7 +225,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
       await saveVault(updatedVault, masterKey);
       setVault(updatedVault);
       closeAddModal();
-      Alert.alert('Success', 'Account added successfully.');
+      showStatusFeedback('success', 'Account Saved');
     } catch (e) {
       Alert.alert('Error', 'Failed to save account.');
     }
@@ -227,7 +259,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
       setVault(updatedVault);
       setIsDetailModalOpen(false);
       setSelectedItem(null);
-      Alert.alert('Success', 'Account updated successfully.');
+      showStatusFeedback('success', 'Changes Saved');
     } catch (e) {
       Alert.alert('Error', 'Failed to update account.');
     }
@@ -246,6 +278,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
             setVault(updatedVault);
             setIsDetailModalOpen(false);
             setSelectedItem(null);
+            showStatusFeedback('delete', 'Account Deleted');
           } catch (e) {
             Alert.alert('Error', 'Failed to delete account.');
           }
@@ -296,7 +329,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
     setIsDetailModalOpen(true);
   };
 
-  const PRESET_COLORS = ['#8E8E93', '#34495E', '#4A90E2', '#2ECC71', '#1ABC9C', '#9B59B6', '#F39C12', '#E74C3C'];
+  const PRESET_COLORS = ['#000000', '#1C1C1E', '#3E3E42', '#5A5A5E', '#78787C', '#96969A', '#B4B4B8', '#D2D2D6'];
 
   const isValidHex = (hex: string) => /^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$/.test(hex);
 
@@ -387,6 +420,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
     if (category === 'E-Wallet') return 'wallet-outline';
     if (category === 'Card') return 'card-outline';
     if (category === 'Note') return 'document-text-outline';
+    if (category === 'PIN') return 'keypad-outline';
 
     const sName = service.toLowerCase();
     if (sName.includes('google')) return 'logo-google';
@@ -403,11 +437,24 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
       {/* Dynamic Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>KLEFKY</Text>
-          <Text style={styles.headerSubtitle}>Offline Security Vault</Text>
+          <View style={styles.headerTitleRow}>
+            <Text style={styles.headerTitle}>KLEFKY</Text>
+            <View style={styles.secureBadge}>
+              <View style={styles.secureDot} />
+              <Text style={styles.secureBadgeText}>SECURE DB</Text>
+            </View>
+          </View>
+          <Text style={styles.headerSubtitle}>Offline Cryptographic Vault</Text>
         </View>
         <TouchableOpacity style={styles.addButton} onPress={openAddModal}>
-          <Ionicons name="add" size={24} color="#FFFFFF" />
+          <LinearGradient
+            colors={['#000000', '#2D2D2D']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.addButtonGradient}
+          >
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+          </LinearGradient>
         </TouchableOpacity>
       </View>
 
@@ -420,28 +467,36 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
             {/* Audit Dashboard Card */}
             <View style={styles.dashboardCard}>
               <View style={styles.dashboardScore}>
-                <CircularProgress score={securityScore} size={90} strokeWidth={7} />
+                <CircularProgress score={securityScore} size={90} strokeWidth={6} />
               </View>
               <View style={styles.dashboardMetrics}>
-                <Text style={styles.dashboardMetricsTitle}>Security Audit</Text>
-                <Text style={styles.dashboardScoreText}>{securityScore}% Protected</Text>
-                <Text style={styles.dashboardDetails}>
-                  {vault.length} item{vault.length !== 1 ? 's' : ''} stored locally
-                  {weakCount > 0 || reusedCount > 0 ? ` • ${weakCount + reusedCount} issue${(weakCount + reusedCount) !== 1 ? 's' : ''}` : ''}
+                <Text style={styles.dashboardMetricsTitle}>SYSTEM DIAGNOSTIC</Text>
+                <Text style={styles.dashboardScoreText}>{securityScore}% COMPLIANT</Text>
+                <Text style={styles.dashboardDetailsMonospace}>
+                  {`DATABASE STATUS: ENCRYPTED\n`}
+                  {`ITEMS STAMPED  : ${vault.length}\n`}
+                  {`WEAK/REUSED    : ${weakCount}/${reusedCount}`}
                 </Text>
               </View>
             </View>
 
             {/* Search Input */}
-            <View style={styles.searchContainer}>
-              <Ionicons name="search-outline" size={20} color="#8E8E93" style={styles.searchIcon} />
+            <View style={[styles.searchContainer, searchFocused && styles.searchContainerFocused]}>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={searchFocused ? '#000000' : '#64748B'}
+                style={styles.searchIcon}
+              />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search vault..."
-                placeholderTextColor="#8E8E93"
+                placeholder="Query credentials..."
+                placeholderTextColor="#94A3B8"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 clearButtonMode="while-editing"
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
               />
             </View>
 
@@ -452,30 +507,33 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
               style={styles.categoryContainer}
               contentContainerStyle={styles.categoryScroll}
             >
-              {['All', 'Login', 'Card', 'E-Wallet', 'Note'].map(cat => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[
-                    styles.categoryPill,
-                    selectedCategory === cat && styles.categoryPillActive,
-                  ]}
-                  onPress={() => setSelectedCategory(cat)}
-                >
-                  <Text
+              {['All', 'Login', 'Card', 'E-Wallet', 'PIN'].map(cat => {
+                const isActive = selectedCategory === cat;
+                return (
+                  <TouchableOpacity
+                    key={cat}
                     style={[
-                      styles.categoryText,
-                      selectedCategory === cat && styles.categoryTextActive,
+                      styles.categoryPill,
+                      isActive && styles.categoryPillActive,
                     ]}
+                    onPress={() => setSelectedCategory(cat)}
                   >
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.categoryText,
+                        isActive && styles.categoryTextActive,
+                      ]}
+                    >
+                      {cat.toUpperCase()}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
           </>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity onPress={() => openViewModal(item)} activeOpacity={0.8}>
+          <TouchableOpacity onPress={() => openViewModal(item)} activeOpacity={0.85}>
             <LinearGradient
               colors={[getCardStartColor(item.color), '#FFFFFF']}
               start={{ x: 0, y: 0 }}
@@ -483,15 +541,15 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
               style={styles.vaultCard}
             >
               <View style={styles.vaultCardLeft}>
-                <View style={[styles.avatar, { backgroundColor: item.color || '#8E8E93' }]}>
-                  <Ionicons name={getServiceIcon(item.service, item.category)} size={22} color="#FFFFFF" />
+                <View style={[styles.avatar, { borderColor: item.color || '#000000' }]}>
+                  <Ionicons name={getServiceIcon(item.service, item.category)} size={18} color="#000000" />
                 </View>
                 <View style={styles.vaultCardInfo}>
                   <Text style={styles.vaultCardService} numberOfLines={1}>
                     {item.service}
                   </Text>
                   <Text style={styles.vaultCardUser} numberOfLines={1}>
-                    {item.username || 'No username specified'}
+                    {item.username || 'NO USERNAME SPECIFIED'}
                   </Text>
                 </View>
               </View>
@@ -501,7 +559,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   style={styles.actionIconButton}
                   onPress={() => openDetailModal(item)}
                 >
-                  <Ionicons name="create-outline" size={20} color="#000000" />
+                  <Ionicons name="create-outline" size={18} color="#000000" />
                 </TouchableOpacity>
               </View>
             </LinearGradient>
@@ -509,11 +567,11 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="lock-open-outline" size={48} color="#E5E5EA" />
+            <Ionicons name="shield-outline" size={48} color="rgba(0, 0, 0, 0.1)" />
             <Text style={styles.emptyText}>
               {searchQuery || selectedCategory !== 'All'
-                ? 'No matching results found.'
-                : 'Your local vault is empty.'}
+                ? 'No matching diagnostics found.'
+                : 'Local secure vault is empty.'}
             </Text>
           </View>
         }
@@ -528,7 +586,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Credential</Text>
+              <Text style={styles.modalTitle}>ADD CREDENTIAL</Text>
               <TouchableOpacity onPress={closeAddModal}>
                 <Ionicons name="close" size={24} color="#000000" />
               </TouchableOpacity>
@@ -538,7 +596,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
               {/* Category selector */}
               <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.formCategoryGroup}>
-                {['Login', 'Card', 'E-Wallet', 'Note'].map(cat => (
+                {['Login', 'Card', 'E-Wallet', 'PIN'].map(cat => (
                   <TouchableOpacity
                     key={cat}
                     style={[
@@ -553,7 +611,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                         formCategory === cat && styles.formCategoryButtonTextActive,
                       ]}
                     >
-                      {cat}
+                      {cat.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -616,40 +674,44 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                       }
                       setFormColor(formatted);
                     }}
-                    placeholder="#8E8E93"
-                    placeholderTextColor="#8E8E93"
+                    placeholder="#64748B"
+                    placeholderTextColor="#64748B"
                     autoCapitalize="characters"
                     maxLength={7}
                   />
-                  <View style={[styles.colorPreview, { backgroundColor: isValidHex(formColor) ? formColor : '#8E8E93' }]} />
+                  <View style={[styles.colorPreview, { backgroundColor: isValidHex(formColor) ? formColor : '#64748B' }]} />
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Service / Application</Text>
+              <Text style={styles.inputLabel}>{formCategory === 'PIN' ? 'App, ATM Card, or Thing' : 'Service / Application'}</Text>
               <TextInput
                 style={styles.modalInput}
-                placeholder="Steam, Google, Netflix..."
-                placeholderTextColor="#C7C7CC"
+                placeholder={formCategory === 'PIN' ? 'e.g. Chase ATM, Netflix PIN, Office Door' : 'Steam, Google, Netflix...'}
+                placeholderTextColor="#94A3B8"
                 value={formService}
                 onChangeText={setFormService}
               />
 
-              <Text style={styles.inputLabel}>Username / Email (Optional)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="email@example.com"
-                placeholderTextColor="#C7C7CC"
-                value={formUsername}
-                onChangeText={setFormUsername}
-                autoCapitalize="none"
-              />
+              {formCategory !== 'PIN' && (
+                <>
+                  <Text style={styles.inputLabel}>Username / Email (Optional)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="email@example.com"
+                    placeholderTextColor="#94A3B8"
+                    value={formUsername}
+                    onChangeText={setFormUsername}
+                    autoCapitalize="none"
+                  />
+                </>
+              )}
 
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>{formCategory === 'PIN' ? 'PIN' : 'Password'}</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={styles.modalPasswordInput}
-                  placeholder="Password"
-                  placeholderTextColor="#C7C7CC"
+                  placeholder={formCategory === 'PIN' ? 'PIN' : 'Password'}
+                  placeholderTextColor="#94A3B8"
                   secureTextEntry={!showFormPassword}
                   value={formPassword}
                   onChangeText={setFormPassword}
@@ -662,7 +724,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   <Ionicons
                     name={showFormPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color="#8E8E93"
+                    color="#64748B"
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -673,21 +735,25 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.inputLabel}>Website URL (Optional)</Text>
-              <TextInput
-                style={styles.modalInput}
-                placeholder="https://steamcommunity.com"
-                placeholderTextColor="#C7C7CC"
-                value={formUrl}
-                onChangeText={setFormUrl}
-                autoCapitalize="none"
-              />
+              {formCategory !== 'PIN' && (
+                <>
+                  <Text style={styles.inputLabel}>Website URL (Optional)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="https://steamcommunity.com"
+                    placeholderTextColor="#94A3B8"
+                    value={formUrl}
+                    onChangeText={setFormUrl}
+                    autoCapitalize="none"
+                  />
+                </>
+              )}
 
               <Text style={styles.inputLabel}>Notes (Optional)</Text>
               <TextInput
                 style={[styles.modalInput, styles.modalNotesInput]}
-                placeholder="Recovery codes, backup notes..."
-                placeholderTextColor="#C7C7CC"
+                placeholder={formCategory === 'PIN' ? 'Backup codes, location, description...' : 'Recovery codes, backup notes...'}
+                placeholderTextColor="#94A3B8"
                 value={formNotes}
                 onChangeText={setFormNotes}
                 multiline
@@ -696,12 +762,12 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
 
               <TouchableOpacity style={styles.saveButton} onPress={handleAddCredential}>
                 <LinearGradient
-                  colors={['#000000', '#1C1C1E']}
+                  colors={['#000000', '#2D2D2D']}
                   style={styles.gradientButton}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                 >
-                  <Text style={styles.saveButtonText}>Save Account</Text>
+                  <Text style={styles.saveButtonText}>SAVE CREDENTIAL</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </ScrollView>
@@ -718,12 +784,12 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={[styles.avatar, { backgroundColor: formColor, marginRight: 10 }]}>
-                  <Ionicons name={getServiceIcon(formService, formCategory)} size={22} color="#FFFFFF" />
+                <View style={[styles.avatar, { borderColor: formColor, marginRight: 10 }]}>
+                  <Ionicons name={getServiceIcon(formService, formCategory)} size={18} color="#000000" />
                 </View>
                 <View>
-                  <Text style={styles.modalTitle}>{formService}</Text>
-                  <Text style={{ fontSize: 12, color: '#8E8E93' }}>{formCategory}</Text>
+                  <Text style={styles.modalTitle}>{formService.toUpperCase()}</Text>
+                  <Text style={{ fontSize: 10, color: '#64748B', fontWeight: 'bold', letterSpacing: 1, marginTop: 2 }}>{formCategory.toUpperCase()}</Text>
                 </View>
               </View>
               <TouchableOpacity onPress={() => setIsViewModalOpen(false)}>
@@ -733,24 +799,28 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
 
             <ScrollView contentContainerStyle={styles.modalForm}>
               {/* Username field */}
-              <Text style={styles.inputLabel}>Username / Email</Text>
-              <View style={styles.viewFieldContainer}>
-                <Text style={styles.viewFieldValue} numberOfLines={2}>
-                  {formUsername || 'No username specified'}
-                </Text>
-              </View>
-              {formUsername ? (
-                <TouchableOpacity
-                  style={styles.viewCopyBtn}
-                  onPress={() => handleCopy(formUsername, 'Username')}
-                >
-                  <Ionicons name="copy-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={styles.viewCopyBtnText}>Copy Username</Text>
-                </TouchableOpacity>
-              ) : null}
+              {formCategory !== 'PIN' && (
+                <>
+                  <Text style={styles.inputLabel}>Username / Email</Text>
+                  <View style={styles.viewFieldContainer}>
+                    <Text style={styles.viewFieldValue} numberOfLines={2}>
+                      {formUsername || 'No username specified'}
+                    </Text>
+                  </View>
+                  {formUsername ? (
+                    <TouchableOpacity
+                      style={styles.viewCopyBtn}
+                      onPress={() => handleCopy(formUsername, 'Username')}
+                    >
+                      <Ionicons name="copy-outline" size={16} color="#000000" style={{ marginRight: 6 }} />
+                      <Text style={[styles.viewCopyBtnText, { color: '#000000' }]}>Copy Username</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </>
+              )}
 
               {/* Password field */}
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>{formCategory === 'PIN' ? 'PIN' : 'Password'}</Text>
               <View style={styles.viewPasswordContainer}>
                 <Text style={styles.viewPasswordValue} numberOfLines={1}>
                   {showDetailPassword ? formPassword : '••••••••••••'}
@@ -762,20 +832,23 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   <Ionicons
                     name={showDetailPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color="#8E8E93"
+                    color="#64748B"
                   />
                 </TouchableOpacity>
               </View>
+
               <TouchableOpacity
                 style={styles.viewCopyBtn}
                 onPress={() => handleCopy(formPassword, 'Password')}
               >
-                <Ionicons name="copy-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.viewCopyBtnText}>Copy Password</Text>
+                <Ionicons name="copy-outline" size={16} color="#000000" style={{ marginRight: 6 }} />
+                <Text style={[styles.viewCopyBtnText, { color: '#000000' }]}>
+                  {formCategory === 'PIN' ? 'Copy PIN' : 'Copy Password'}
+                </Text>
               </TouchableOpacity>
 
               {/* Optional URL */}
-              {formUrl ? (
+              {formCategory !== 'PIN' && formUrl ? (
                 <>
                   <Text style={styles.inputLabel}>Website URL</Text>
                   <View style={styles.viewFieldContainer}>
@@ -808,7 +881,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   }
                 }}
               >
-                <Text style={styles.viewEditBtnText}>Edit Credential</Text>
+                <Text style={styles.viewEditBtnText}>EDIT CREDENTIAL</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -823,7 +896,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Credential Details</Text>
+              <Text style={styles.modalTitle}>CREDENTIAL DETAILS</Text>
               <TouchableOpacity onPress={() => setIsDetailModalOpen(false)}>
                 <Ionicons name="close" size={24} color="#000000" />
               </TouchableOpacity>
@@ -832,7 +905,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
             <ScrollView contentContainerStyle={styles.modalForm}>
               <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.formCategoryGroup}>
-                {['Login', 'Card', 'E-Wallet', 'Note'].map(cat => (
+                {['Login', 'Card', 'E-Wallet', 'PIN'].map(cat => (
                   <TouchableOpacity
                     key={cat}
                     style={[
@@ -847,7 +920,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                         formCategory === cat && styles.formCategoryButtonTextActive,
                       ]}
                     >
-                      {cat}
+                      {cat.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -910,39 +983,43 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                       }
                       setFormColor(formatted);
                     }}
-                    placeholder="#8E8E93"
-                    placeholderTextColor="#8E8E93"
+                    placeholder="#64748B"
+                    placeholderTextColor="#64748B"
                     autoCapitalize="characters"
                     maxLength={7}
                   />
-                  <View style={[styles.colorPreview, { backgroundColor: isValidHex(formColor) ? formColor : '#8E8E93' }]} />
+                  <View style={[styles.colorPreview, { backgroundColor: isValidHex(formColor) ? formColor : '#64748B' }]} />
                 </View>
               </View>
 
-              <Text style={styles.inputLabel}>Service / Application</Text>
+              <Text style={styles.inputLabel}>{formCategory === 'PIN' ? 'App, ATM Card, or Thing' : 'Service / Application'}</Text>
               <TextInput
                 style={styles.modalInput}
                 value={formService}
                 onChangeText={setFormService}
               />
 
-              <Text style={styles.inputLabel}>Username / Email (Optional)</Text>
-              <View style={styles.detailInputWrapper}>
-                <TextInput
-                  style={[styles.modalInput, { flex: 1, marginBottom: 0 }]}
-                  value={formUsername}
-                  onChangeText={setFormUsername}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  style={styles.detailCopyBtn}
-                  onPress={() => handleCopy(formUsername, 'Username')}
-                >
-                  <Ionicons name="copy-outline" size={20} color="#000000" />
-                </TouchableOpacity>
-              </View>
+              {formCategory !== 'PIN' && (
+                <>
+                  <Text style={styles.inputLabel}>Username / Email (Optional)</Text>
+                  <View style={styles.detailInputWrapper}>
+                    <TextInput
+                      style={[styles.modalInput, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
+                      value={formUsername}
+                      onChangeText={setFormUsername}
+                      autoCapitalize="none"
+                    />
+                    <TouchableOpacity
+                      style={styles.detailCopyBtn}
+                      onPress={() => handleCopy(formUsername, 'Username')}
+                    >
+                      <Ionicons name="copy-outline" size={20} color="#000000" />
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
-              <Text style={styles.inputLabel}>Password</Text>
+              <Text style={styles.inputLabel}>{formCategory === 'PIN' ? 'PIN' : 'Password'}</Text>
               <View style={styles.passwordInputContainer}>
                 <TextInput
                   style={styles.modalPasswordInput}
@@ -958,7 +1035,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   <Ionicons
                     name={showDetailPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
-                    color="#8E8E93"
+                    color="#64748B"
                   />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -969,13 +1046,17 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.inputLabel}>Website URL (Optional)</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={formUrl}
-                onChangeText={setFormUrl}
-                autoCapitalize="none"
-              />
+              {formCategory !== 'PIN' && (
+                <>
+                  <Text style={styles.inputLabel}>Website URL (Optional)</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={formUrl}
+                    onChangeText={setFormUrl}
+                    autoCapitalize="none"
+                  />
+                </>
+              )}
 
               <Text style={styles.inputLabel}>Notes (Optional)</Text>
               <TextInput
@@ -991,23 +1072,59 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
                   style={styles.deleteButton}
                   onPress={() => selectedItem && handleDeleteCredential(selectedItem.id)}
                 >
-                  <Text style={styles.deleteButtonText}>Delete</Text>
+                  <Text style={styles.deleteButtonText}>DELETE</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.updateButton} onPress={handleUpdateCredential}>
                   <LinearGradient
-                    colors={['#000000', '#1C1C1E']}
+                    colors={['#000000', '#2D2D2D']}
                     style={styles.gradientButton}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                   >
-                    <Text style={styles.updateButtonText}>Save Changes</Text>
+                    <Text style={styles.updateButtonText}>SAVE CHANGES</Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal: Animated Feedback Status */}
+      <Modal visible={isStatusModalOpen} transparent animationType="fade">
+        <View style={styles.statusOverlay}>
+          <Animated.View
+            style={[
+              styles.statusContent,
+              {
+                opacity: statusAnim,
+                transform: [
+                  {
+                    scale: statusAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.7, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.statusIconCircle,
+                styles.statusIconCircleMonochrome,
+              ]}
+            >
+              <Ionicons
+                name={statusType === 'delete' ? 'trash-outline' : 'checkmark'}
+                size={44}
+                color="#000000"
+              />
+            </View>
+            <Text style={styles.statusFeedbackText}>{statusMessage.toUpperCase()}</Text>
+          </Animated.View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1026,23 +1143,57 @@ const styles = StyleSheet.create({
     paddingTop: 15,
     paddingBottom: 10,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '300',
+    fontSize: 20,
+    fontWeight: '200',
     color: '#000000',
-    letterSpacing: 3,
+    letterSpacing: 4,
     fontFamily: 'System',
   },
+  secureBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderWidth: 1,
+    borderColor: '#000000',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  secureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#000000',
+    marginRight: 5,
+  },
+  secureBadgeText: {
+    fontSize: 8,
+    color: '#000000',
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
   headerSubtitle: {
-    fontSize: 12,
-    color: '#8E8E93',
+    fontSize: 10,
+    color: '#64748B',
     fontFamily: 'System',
+    marginTop: 3,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   addButton: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#000000',
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1051,9 +1202,9 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   colorPickerContainer: {
-    backgroundColor: '#F9F9F9',
+    backgroundColor: 'rgba(0, 0, 0, 0.01)',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     borderRadius: 8,
     padding: 12,
     marginBottom: 10,
@@ -1068,7 +1219,7 @@ const styles = StyleSheet.create({
     height: 26,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
   },
   swatchSelected: {
     borderWidth: 2,
@@ -1080,14 +1231,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 6,
     paddingHorizontal: 10,
     height: 38,
   },
   hexInputLabel: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: '#64748B',
     marginRight: 6,
     fontWeight: '500',
   },
@@ -1104,7 +1255,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.1)',
     marginLeft: 6,
   },
   hueSliderContainer: {
@@ -1135,9 +1286,9 @@ const styles = StyleSheet.create({
   dashboardCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 12,
     padding: 16,
     marginVertical: 15,
@@ -1149,35 +1300,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dashboardMetricsTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
     marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 2,
   },
   dashboardScoreText: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '300',
     color: '#000000',
-    marginBottom: 2,
+    marginBottom: 6,
     fontFamily: 'System',
+    letterSpacing: 1,
   },
-  dashboardDetails: {
-    fontSize: 13,
-    color: '#8E8E93',
-    fontFamily: 'System',
+  dashboardDetailsMonospace: {
+    fontSize: 11,
+    color: '#64748B',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    lineHeight: 16,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
     marginBottom: 15,
+  },
+  searchContainerFocused: {
+    borderColor: '#000000',
   },
   searchIcon: {
     marginRight: 8,
@@ -1185,7 +1340,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     color: '#000000',
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'System',
   },
   categoryContainer: {
@@ -1195,37 +1350,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   categoryPill: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.04)',
     marginRight: 8,
   },
   categoryPillActive: {
-    backgroundColor: '#000000',
     borderColor: '#000000',
+    backgroundColor: '#000000',
   },
   categoryText: {
-    color: '#8E8E93',
-    fontSize: 13,
-    fontWeight: '500',
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
   },
   categoryTextActive: {
     color: '#FFFFFF',
-    fontWeight: '600',
   },
   vaultCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     borderRadius: 8,
     padding: 14,
     marginBottom: 10,
+    backgroundColor: '#FFFFFF',
   },
   vaultCardLeft: {
     flexDirection: 'row',
@@ -1237,10 +1392,11 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(0, 0, 0, 0.01)',
   },
   vaultCardInfo: {
     flex: 1,
@@ -1251,9 +1407,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   vaultCardUser: {
-    color: '#8E8E93',
-    fontSize: 12,
-    marginTop: 2,
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 3,
+    letterSpacing: 0.5,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   vaultCardRight: {
     flexDirection: 'row',
@@ -1263,9 +1421,9 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 6,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 6,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: 'rgba(0, 0, 0, 0.01)',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1273,14 +1431,15 @@ const styles = StyleSheet.create({
     paddingVertical: 50,
   },
   emptyText: {
-    color: '#8E8E93',
-    fontSize: 14,
+    color: '#64748B',
+    fontSize: 13,
     marginTop: 10,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -1288,7 +1447,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     maxHeight: '85%',
   },
   modalHeader: {
@@ -1297,35 +1456,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.06)',
   },
   modalTitle: {
     color: '#000000',
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: 1,
+    fontSize: 16,
+    fontWeight: '300',
+    letterSpacing: 2,
   },
   modalForm: {
     padding: 20,
   },
   inputLabel: {
-    color: '#8E8E93',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 2,
     marginBottom: 8,
     marginTop: 14,
   },
   modalInput: {
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 8,
     color: '#000000',
     paddingHorizontal: 12,
     height: 46,
-    fontSize: 15,
+    fontSize: 14,
     marginBottom: 10,
   },
   modalNotesInput: {
@@ -1341,19 +1500,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     alignItems: 'center',
     marginRight: 6,
     borderRadius: 6,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#FFFFFF',
   },
   formCategoryButtonActive: {
     backgroundColor: '#000000',
     borderColor: '#000000',
   },
   formCategoryButtonText: {
-    color: '#8E8E93',
-    fontSize: 13,
+    color: '#64748B',
+    fontSize: 12,
     fontWeight: '500',
   },
   formCategoryButtonTextActive: {
@@ -1363,9 +1522,9 @@ const styles = StyleSheet.create({
   passwordInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 8,
     marginBottom: 10,
   },
@@ -1374,24 +1533,27 @@ const styles = StyleSheet.create({
     color: '#000000',
     paddingHorizontal: 12,
     height: 46,
-    fontSize: 15,
+    fontSize: 14,
   },
   pwIcon: {
     paddingHorizontal: 10,
   },
   generateBtn: {
-    backgroundColor: '#E5E5EA',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
     paddingHorizontal: 14,
     height: 34,
     justifyContent: 'center',
     borderRadius: 6,
     marginRight: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
   },
   generateBtnText: {
     color: '#000000',
     fontSize: 11,
     fontWeight: '600',
     textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   saveButton: {
     height: 50,
@@ -1403,7 +1565,8 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 15,
+    letterSpacing: 1.5,
   },
   gradientButton: {
     flex: 1,
@@ -1413,9 +1576,9 @@ const styles = StyleSheet.create({
   detailInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 8,
     marginBottom: 10,
   },
@@ -1425,7 +1588,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderLeftWidth: 1,
-    borderLeftColor: '#E5E5EA',
+    borderLeftColor: 'rgba(0, 0, 0, 0.08)',
   },
   detailActionRow: {
     flexDirection: 'row',
@@ -1437,16 +1600,17 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: '#000000',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   deleteButtonText: {
-    color: '#8E8E93',
-    fontSize: 15,
+    color: '#000000',
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   updateButton: {
     flex: 2,
@@ -1457,10 +1621,13 @@ const styles = StyleSheet.create({
   updateButtonText: {
     color: '#FFFFFF',
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 14,
+    letterSpacing: 0.5,
   },
   viewFieldContainer: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -1468,40 +1635,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   viewFieldValue: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#000000',
     fontWeight: '500',
   },
   viewCopyBtn: {
     flexDirection: 'row',
-    backgroundColor: '#000000',
     borderRadius: 8,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#000000',
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
   },
   viewCopyBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
   viewPasswordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
     marginBottom: 8,
   },
   viewPasswordValue: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#000000',
     fontWeight: '500',
     fontFamily: 'System',
     flex: 1,
+    letterSpacing: 1,
   },
   viewEyeBtn: {
     padding: 4,
@@ -1515,10 +1687,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     marginBottom: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
   },
   viewEditBtnText: {
     color: '#000000',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  statusOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: 180,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
+  },
+  statusIconCircle: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statusIconCircleMonochrome: {
+    borderColor: '#000000',
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+  },
+  statusFeedbackText: {
+    color: '#000000',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    fontFamily: 'System',
+    letterSpacing: 0.5,
   },
 });
