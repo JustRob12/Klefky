@@ -507,7 +507,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
               style={styles.categoryContainer}
               contentContainerStyle={styles.categoryScroll}
             >
-              {['All', 'Login', 'Card', 'E-Wallet', 'PIN'].map(cat => {
+              {['All', 'Login', 'E-Wallet', 'PIN'].map(cat => {
                 const isActive = selectedCategory === cat;
                 return (
                   <TouchableOpacity
@@ -596,7 +596,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
               {/* Category selector */}
               <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.formCategoryGroup}>
-                {['Login', 'Card', 'E-Wallet', 'PIN'].map(cat => (
+                {['Login', 'E-Wallet', 'PIN'].map(cat => (
                   <TouchableOpacity
                     key={cat}
                     style={[
@@ -905,7 +905,7 @@ export default function VaultScreen({ masterKey }: VaultScreenProps) {
             <ScrollView contentContainerStyle={styles.modalForm}>
               <Text style={styles.inputLabel}>Category</Text>
               <View style={styles.formCategoryGroup}>
-                {['Login', 'Card', 'E-Wallet', 'PIN'].map(cat => (
+                {['Login', 'E-Wallet', 'PIN'].map(cat => (
                   <TouchableOpacity
                     key={cat}
                     style={[
